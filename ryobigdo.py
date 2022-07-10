@@ -2,6 +2,7 @@
 Implements a Ryobi Garage Door Opener from their API
 """
 
+from distutils.command.build_scripts import first_line_re
 import logging
 from xmlrpc.client import ResponseError
 from helpers.constants import HTTP_ENDPOINT
@@ -61,6 +62,34 @@ class RyobiGDO:
             raise ResponseError from error
 
     def extract_device_info(self):
-        self.name = self.device_response["result"][0]["metaData"]["name"]
-        self.description = self.device_response["result"][0]["metaData"]["description"]
+        first_result = self.device_response["result"][0]
+        garageDoor = first_result["deviceTypeMap"]["garageDoor_4"]["at"]
+        garageLight = first_result["deviceTypeMap"]["garageLight_4"]["at"]
+
+        self.name = first_result["metaData"]["name"]
+        self.description = first_result["metaData"]["description"]
+        self.version = first_result["metaData"]["version"]
+        self.lastSeen = first_result["metaData"]["sys"]["lastSeen"]
+        self.serial = first_result["deviceTypeMap"]["masterUnit"]["at"]["serialNumber"]["value"]
+        self.mac = first_result["deviceTypeMap"]["masterUnit"]["at"]["macAddress"]["value"]
+        self.wifiVersion = first_result["deviceTypeMap"]["masterUnit"]["at"]["appVersion"]["value"]
+        self.garageDoor = {
+            "vacationMode": garageDoor["vacationMode"]["value"],
+            "sensorFlag": {
+                "lastSet": garageDoor["sensorFlag"]["lastSet"],
+                "lastValue": garageDoor["sensorFlag"]["lastValue"],
+                "value": garageDoor["sensorFlag"]["value"],
+            },
+            "doorState": {
+                "lastSet": garageDoor["doorState"]["lastSet"],
+                "lastValue": garageDoor["doorState"]["lastValue"],
+                "value": garageDoor["doorState"]["value"],
+                "enum": garageDoor["doorState"]["enum"],
+            },
+            "doorPercentOpen": garageDoor["doorPercentOpen"]["value"],
+        }
+        self.garageLight = {
+            "lightState": garageLight["lightState"]["value"],
+            "lightTimer": garageLight["lightTimer"]["value"],
+        }
         return True

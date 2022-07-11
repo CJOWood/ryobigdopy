@@ -3,6 +3,7 @@ Implements a Ryobi Garage Door Opener from their API
 """
 
 from distutils.command.build_scripts import first_line_re
+import json
 import logging
 from xmlrpc.client import ResponseError
 from helpers.constants import HTTP_ENDPOINT
@@ -12,6 +13,7 @@ _logger = logging.getLogger(__name__)
 
 class RyobiGDO:
     def __init__(self, id, auth):
+        _logger.debug("Creating RyobiGDO object.")
         self.auth = auth
         self.device_id = id
         self.name = None
@@ -50,6 +52,7 @@ class RyobiGDO:
     def update_device(self):
         if self.device_id is None:
             _logger.error("No device_id exists or was given to update")
+            return False
 
         response = http_api.get_device(self.auth, f"{HTTP_ENDPOINT}/devices", self.device_id)
         try:
@@ -57,11 +60,15 @@ class RyobiGDO:
                 self.device_response = response.json()
                 self.extract_device_info()
                 return response.json()
-            raise ResponseError
+            raise DeviceResponseError
         except AttributeError as error:
-            raise ResponseError from error
+            raise DeviceResponseError from error
 
     def extract_device_info(self):
+        if self.device_response is None:
+            _logger.error("Variable device_response is empty. Cannot extract info.")
+            raise AttributeError("No response info available to extract!")
+
         first_result = self.device_response["result"][0]
         garageDoor = first_result["deviceTypeMap"]["garageDoor_4"]["at"]
         garageLight = first_result["deviceTypeMap"]["garageLight_4"]["at"]
@@ -85,6 +92,7 @@ class RyobiGDO:
                 "lastValue": garageDoor["doorState"]["lastValue"],
                 "value": garageDoor["doorState"]["value"],
                 "enum": garageDoor["doorState"]["enum"],
+                "state": garageDoor["doorState"]["enum"][garageDoor["doorState"]["value"]]
             },
             "doorPercentOpen": garageDoor["doorPercentOpen"]["value"],
         }
@@ -92,4 +100,43 @@ class RyobiGDO:
             "lightState": garageLight["lightState"]["value"],
             "lightTimer": garageLight["lightTimer"]["value"],
         }
+        self.device_response = None
+        _logger.info("Device information updated!")
         return True
+
+    def turn_on_light(self):
+        if self.garageLight["lightState"] == True:
+            return True
+
+
+    def turn_off_light(self):
+        if self.garageLight["lightState"] == False:
+            return True
+
+    def open_door(self):
+        if self.garageDoor["doorState"]["state"] == "Open":
+            _logger.info("Door state already open.")
+            return True
+        
+        pass
+
+    def close_door(self):
+        if self.garageDoor["doorState"]["state"] == "Closed":
+            _logger.info("Door state already closed.")
+            return True
+
+        pass
+
+    def set_height():
+        pass
+
+    def set_vacation_mode(self, mode = False):
+        if self.vacation_mode == mode:
+            _logger.info(f"Vacation mode already set to {mode}.")
+            return True
+
+        pass
+
+
+class DeviceResponseError(Exception):
+    """Class to throw failed device update response exception."""

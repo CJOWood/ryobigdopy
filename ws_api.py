@@ -4,7 +4,6 @@ import json
 import logging
 from json import dumps
 from helpers.constants import WS_ENDPOINT, WS_TIMEOUT
-import asyncio
 import websockets
 
 _LOGGER = logging.getLogger(__name__)
@@ -21,6 +20,7 @@ STATE_NOT_STARTED = "not_started"
 STATE_STARTING = "starting"
 STATE_CONNECTED = "connected"
 STATE_STOPPED = "stopped"
+STATE_CLOSED = "closed"
 STATE_ERROR = "error"
 
 class RyobiWebsocket:
@@ -36,18 +36,18 @@ class RyobiWebsocket:
         self.failed_attempts = None
         self._error_reason = None
 
-    @property
-    def state(self):
-        """Return the current state."""
-        return self._state
+    # @property
+    # def state(self):
+    #     """Return the current state."""
+    #     return self._state
 
-    @state.setter
-    def state(self, value):
-        """Set the state."""
-        self._state = value
-        _LOGGER.debug("Websocket %s", value)
-        self.callback(SIGNAL_CONNECTION_STATE, value, self._error_reason)
-        self._error_reason = None
+    # @state.setter
+    # def state(self, value):
+    #     """Set the state."""
+    #     self._state = value
+    #     _LOGGER.debug("Websocket %s", value)
+    #     self.callback(SIGNAL_CONNECTION_STATE, value, self._error_reason)
+    #     self._error_reason = None
 
     async def running(self):
         try:
@@ -71,12 +71,16 @@ class RyobiWebsocket:
                     while True:
                         async for message in self.conn:
                             _LOGGER.debug("Message: %s", message)
-                            self.callback(None, message, None)
+                            self.callback(message)
                             #process message
+                        if self._state is STATE_STOPPED:
+                            _LOGGER.info("Closing websocket...")
+                            await self.conn.close()
+                            break
 
                 except websockets.ConnectionClosed:
                     _LOGGER.warning("Websocket connection closed. Retrying... %s", self.failed_attempts)
-                    self._state = STATE_STOPPED
+                    self._state = STATE_CLOSED
                     self.failed_attempts += 1
                     self._is_notify = False
                     self._is_auth = False
@@ -100,12 +104,12 @@ class RyobiWebsocket:
         _LOGGER.debug("Sending Authentication message.")
         await self.conn.send(json.dumps(
             {'jsonrpc': '2.0',
-                'id': 3,
-                'method': 'srvWebSocketAuth',
-                'params': {
-                    'varName': self.auth.username,
-                    'apiKey': self.auth.api_key
-                    }
+            'id': 3,
+            'method': 'srvWebSocketAuth',
+            'params': {
+                'varName': self.auth.username,
+                'apiKey': self.auth.api_key
+                }
             }))
         _LOGGER.debug("Throw away first reply: %s", await self.conn.recv()) #Throw away first reply
         auth_response = json.loads(await self.conn.recv())
@@ -121,11 +125,11 @@ class RyobiWebsocket:
         _LOGGER.debug("Sending Subscribe message.")
         await self.conn.send(json.dumps(
             {'jsonrpc': '2.0',
-                'id': 3,
-                'method': 'wskSubscribe',
-                'params': {
-                    "topic": f"{self.device_id}.wskAttributeUpdateNtfy"
-                    }
+            'id': 3,
+            'method': 'wskSubscribe',
+            'params': {
+                "topic": f"{self.device_id}.wskAttributeUpdateNtfy"
+                }
             }))
         notify_response = json.loads(await self.conn.recv())
         _LOGGER.debug("Recieving after subscribe: %s", notify_response)
@@ -141,18 +145,20 @@ class RyobiWebsocket:
             await self.conn.send(msg)
 
     async def send_command(self, command, value):
-        await self.conn.send(json.dumps({'jsonrpc': '2.0',
+        await self.conn.send(json.dumps(
+            {'jsonrpc': '2.0',
             'method': 'gdoModuleCommand',
             'params':
-            {'msgType': 16,
-            'moduleType': 5,
-            'portId': 7,
-            'moduleMsg': {command: value},
-            'topic': self.device_id}}))
-        #probably check that it worked? Maybe use some kind of Queue that waits for a response? Could revamp sendauth/sendnotify
+                {'msgType': 16,
+                'moduleType': 5,
+                'portId': 7,
+                'moduleMsg': 
+                    {command: value},
+                'topic': self.device_id}
+            }))
+        #probably check that it worked? Maybe use some kind of Queue that waits for a response then checks against expected in Queue otherwise callback? Could revamp sendauth/sendnotify.
 
     async def listen(self):
-        """Close the listening websocket."""
         self.failed_attempts = 0
         while self.state != STATE_STOPPED:
             await self.running()

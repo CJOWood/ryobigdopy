@@ -29,7 +29,8 @@ def get_devices(auth):
         headers=headers
     )
 
-def get_device(auth, url, device_id):
+def get_device(auth, device_id):
+    url = f"{HTTP_ENDPOINT}/devices/{device_id}"
     headers = {
         "Host": RYOBI_URL,
         "Content-Type": "application/json",
@@ -43,7 +44,7 @@ def get_device(auth, url, device_id):
 
     return query(
         auth,
-        url=f"{url}/{device_id}",
+        url=url,
         reqtype="get",
         data=data,
         headers=headers

@@ -2,12 +2,12 @@
 Implements a Ryobi Garage Door Opener from their API
 """
 
-from distutils.command.build_scripts import first_line_re
+import asyncio
 import json
 import logging
-from xmlrpc.client import ResponseError
 from helpers.constants import HTTP_ENDPOINT
 import http_api
+import ws_api
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -16,10 +16,13 @@ class RyobiGDO:
         _LOGGER.debug("Creating RyobiGDO object.")
         self.auth = auth
         self.device_id = id
+        self.ws = None
+
         self.name = None
         self.description = None
         self.version = None
         self.lastSeen = None
+        self.lastUpdate = None
         self.serial = None
         self.mac = None
         self.wifiVersion = None
@@ -48,6 +51,23 @@ class RyobiGDO:
         if self.auth is not None and self.device_id is not None:
             self.update_device(self, self.auth)
         """
+    def process_ws_msg(self, data):
+        _LOGGER.debug("Processing incoming msg: %s", data)
+        msgType = data["method"]
+        msgDevice = data["params"]["varName"]
+
+        if msgType == "wskAttributeUpdateNtfy":
+            msgTopic = list(data["params"].keys()[2])
+
+            if msgTopic == "garageLight_4":
+                msgUpdate = data["params"][msgTopic]
+                self.garageLight["lightState"] = msgUpdate["value"]
+                self.lastUpdate = msgUpdate["lastSet"]
+                return True
+        #other msgTypes process here.
+
+        _LOGGER.error("Could not process message. Unrecognized type: %s. Data: %s", msgType, data)
+        return False
 
     def update_device(self):
         if self.device_id is None:
@@ -104,39 +124,56 @@ class RyobiGDO:
         _LOGGER.info("Device information updated!")
         return True
 
-    def turn_on_light(self):
-        if self.garageLight["lightState"] == True:
+    def connectWS(self):
+        self.ws = ws_api.RyobiWebsocket(self.process_ws_msg, self.auth, self.device_id)
+        loop = asyncio.get_event_loop()
+        # loop.create_task(do_other())
+        loop.run_until_complete(self.ws.listen())
+
+    def turn_on_light(self, force=False):
+        if self.garageLight["lightState"] == True and not force:
+            _LOGGER.debug("Light already on. No request sent.")
+            return
+
+        _LOGGER.info("Sending Turn on Light command.")
+        self.ws.send_command("lightState", "true")
+
+    def turn_off_light(self, force=False):
+        if self.garageLight["lightState"] == False and not force:
+            _LOGGER.debug("Light already off. No request sent.")
             return True
 
+        _LOGGER.info("Sending Turn off Light command.")
+        self.ws.send_command("lightState", "false")
 
-    def turn_off_light(self):
-        if self.garageLight["lightState"] == False:
-            return True
-
-    def open_door(self):
-        if self.garageDoor["doorState"]["state"] == "Open":
-            _LOGGER.info("Door state already open.")
+    def open_door(self, force=False):
+        if self.garageDoor["doorState"]["state"] == "Open" and not force:
+            _LOGGER.info("Door state already open. No request sent.")
             return True
         
-        pass
+        _LOGGER.info("Sending Open Garage Door command.")
+        self.ws.send_command("doorCommand", "1")
 
-    def close_door(self):
-        if self.garageDoor["doorState"]["state"] == "Closed":
-            _LOGGER.info("Door state already closed.")
+    def close_door(self, force=False):
+        if self.garageDoor["doorState"]["state"] == "Closed" and not force:
+            _LOGGER.info("Door state already closed. No request sent.")
             return True
 
+        _LOGGER.info("Sending Close Garage Door command.")
+        self.ws.send_command("doorCommand", "0")
+
+    def set_height(self, force=False):
         pass
 
-    def set_height():
-        pass
-
-    def set_vacation_mode(self, mode = False):
+    def set_vacation_mode(self, mode=False, force=False):
         if self.vacation_mode == mode:
             _LOGGER.info(f"Vacation mode already set to {mode}.")
             return True
 
         pass
 
-
 class DeviceResponseError(Exception):
+    """Class to throw failed device update response exception."""
+
+class UpdateUnrecognized(Exception):
     """Class to throw failed device update response exception."""

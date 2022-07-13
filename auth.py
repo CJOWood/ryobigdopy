@@ -8,7 +8,7 @@ from helpers.constants import (
     HTTP_TIMEOUT,
 )
 
-_logger = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
 
 class Auth:
@@ -36,7 +36,7 @@ class Auth:
 
     def login(self, login_url=f"{HTTP_ENDPOINT}/login"):
         """Attempt login to ryobigdo servers."""
-        _logger.info("Attempting login with %s", login_url)
+        _LOGGER.info("Attempting login with %s", login_url)
         response = http_api.request_login(
             self,
             login_url,

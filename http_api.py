@@ -7,7 +7,7 @@ from helpers.constants import HTTP_ENDPOINT, RYOBI_URL, HTTP_TIMEOUT
 from requests import Request, exceptions
 from urllib3.util.retry import Retry
 
-_logger = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
 def get_devices(auth):
     url = f"{HTTP_ENDPOINT}/devices"
@@ -109,7 +109,7 @@ def query(
             response = auth.session.send(req, stream=stream, timeout=timeout)
             return response
         except (exceptions.ConnectionError, exceptions.Timeout):
-            _logger.error(
+            _LOGGER.error(
                 "Connection error. Endpoint %s possibly down.",
                 url,
             )
@@ -121,7 +121,7 @@ def query(
                 reason = response.reason
             except AttributeError:
                 pass
-            _logger.error(
+            _LOGGER.error(
                 "Expected json response from %s, but received: %s: %s",
                 url,
                 code,

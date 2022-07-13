@@ -9,11 +9,11 @@ from xmlrpc.client import ResponseError
 from helpers.constants import HTTP_ENDPOINT
 import http_api
 
-_logger = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
 class RyobiGDO:
     def __init__(self, id, auth):
-        _logger.debug("Creating RyobiGDO object.")
+        _LOGGER.debug("Creating RyobiGDO object.")
         self.auth = auth
         self.device_id = id
         self.name = None
@@ -51,7 +51,7 @@ class RyobiGDO:
 
     def update_device(self):
         if self.device_id is None:
-            _logger.error("No device_id exists or was given to update")
+            _LOGGER.error("No device_id exists or was given to update")
             return False
 
         response = http_api.get_device(self.auth, f"{HTTP_ENDPOINT}/devices", self.device_id)
@@ -66,7 +66,7 @@ class RyobiGDO:
 
     def extract_device_info(self):
         if self.device_response is None:
-            _logger.error("Variable device_response is empty. Cannot extract info.")
+            _LOGGER.error("Variable device_response is empty. Cannot extract info.")
             raise AttributeError("No response info available to extract!")
 
         first_result = self.device_response["result"][0]
@@ -101,7 +101,7 @@ class RyobiGDO:
             "lightTimer": garageLight["lightTimer"]["value"],
         }
         self.device_response = None
-        _logger.info("Device information updated!")
+        _LOGGER.info("Device information updated!")
         return True
 
     def turn_on_light(self):
@@ -115,14 +115,14 @@ class RyobiGDO:
 
     def open_door(self):
         if self.garageDoor["doorState"]["state"] == "Open":
-            _logger.info("Door state already open.")
+            _LOGGER.info("Door state already open.")
             return True
         
         pass
 
     def close_door(self):
         if self.garageDoor["doorState"]["state"] == "Closed":
-            _logger.info("Door state already closed.")
+            _LOGGER.info("Door state already closed.")
             return True
 
         pass
@@ -132,7 +132,7 @@ class RyobiGDO:
 
     def set_vacation_mode(self, mode = False):
         if self.vacation_mode == mode:
-            _logger.info(f"Vacation mode already set to {mode}.")
+            _LOGGER.info(f"Vacation mode already set to {mode}.")
             return True
 
         pass

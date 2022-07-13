@@ -7,50 +7,95 @@ from helpers.constants import WS_ENDPOINT, WS_TIMEOUT
 import asyncio
 import websockets
 
-_logger = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
+SIGNAL_CONNECTION_STATE = "ryobiwebsocket_state"
+
+STATE_NOT_STARTED = "not_started"
+STATE_STARTING = "starting"
+STATE_STARTED = "started"
+STATE_STOPPED = "stopped"
+STATE_ERROR = "error"
 
 class RyobiWebsocket:
 
-    def __init__(self, auth, device_id):
-        self._conn = None
+    def __init__(self, callback, auth):
+        self.conn = None
+        self.callback = callback
         self.auth = auth
-        self.device_id = device_id
-        self.is_auth = False
-        self.is_notify = False
+        self.device_id = None #device_id
+        self._is_auth = False
+        self._is_notify = False
+        self._state = STATE_NOT_STARTED
+        self.failed_attempts = None
 
-    async def main(self):
-        await self.connect()
-        loop = asyncio.get_event_loop()
-        loop.run_forever(await self.receive())
+    @property
+    def state(self):
+        """Return the current state."""
+        return self._state
 
-    async def connect(self):
-        self._conn = await websockets.connect(WS_ENDPOINT, timeout=None)
-        _logger.debug(await self.send_auth_message(self.auth))
-        _logger.debug(await self.send_notify_message())
+    @state.setter
+    def state(self, value):
+        """Set the state."""
+        self._state = value
+        _LOGGER.debug("Websocket %s", value)
+        self.callback(SIGNAL_CONNECTION_STATE, value, self._error_reason)
+        self._error_reason = None
 
-    async def send(self, message):
-        await self._conn.send(message)
+    async def running(self):
+        try:
+            async for self.conn in websockets.connect("wss://ws.postman-echo.com/raw"):
+                try:
+                    _LOGGER.debug("is Auth: %s. is Notify: %s", self._is_auth, self._is_notify)
+                    if self._is_auth is False:
+                        await self.send_auth_message()
 
-    async def receive(self):
-        return _logger.debug(await self._conn.recv())
+                    if self._is_notify is False:
+                        await self.send_notify_message()
 
-    async def send_auth_message(self, auth):
-        return await self._conn.send(json.dumps(
+                    while True:
+                        async for message in self.conn:
+                            _LOGGER.debug("Message: %s", message)
+                            self.callback(None, message, None)
+                            #process message
+
+                except websockets.ConnectionClosed:
+                    continue
+        except Exception:
+            pass
+
+    async def send_auth_message(self):
+        _LOGGER.debug("Sending Authentication message.")
+        await self.conn.send(json.dumps(
             {'jsonrpc': '2.0',
                 'id': 3,
                 'method': 'srvWebSocketAuth',
                 'params': {
-                    'varName': auth.username,
-                    'apiKey': auth.api_key}}))
-    """'{"jsonrpc":"2.0","result":{"authorized":true,"varName":"chris@chriswood.org","aCnt":0},"id":3}'"""
+                    'varName': "auth.username",
+                    'apiKey': "auth.apikey"}}))
+    #'{"jsonrpc":"2.0","result":{"authorized":true,"varName":"chris@chriswood.org","aCnt":0},"id":3}'
     
     async def send_notify_message(self):
-        return await self._conn.send(json.dumps(
+        _LOGGER.debug("Sending Subscribe message.")
+        await self.conn.send(json.dumps(
             {'jsonrpc': '2.0',
                 'id': 3,
                 'method': 'wskSubscribe',
                 'params': {
-                    "topic": f"{self.device_id}.wskAttributeUpdateNtfy"
+                    "topic": f"DEVICE_IS.wskAttributeUpdateNtfy"
                     }
             }))
+
+    async def send_msg(self, msg):
+        if self._state is STATE_STARTED:
+            await self.conn.send(msg)
+
+    async def listen(self):
+        """Close the listening websocket."""
+        self.failed_attempts = 0
+        while self.state != STATE_STOPPED:
+            await self.running()
+
+    def close(self):
+        """Close the listening websocket."""
+        self.state = STATE_STOPPED

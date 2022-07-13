@@ -151,12 +151,12 @@ class RyobiWebsocket:
             'params':
                 {'msgType': 16,
                 'moduleType': 5,
-                'portId': 7,
+                'portId': 7, #check if protId same for light/door/modules.
                 'moduleMsg': 
                     {command: value},
                 'topic': self.device_id}
             }))
-        #probably check that it worked? Maybe use some kind of Queue that waits for a response then checks against expected in Queue otherwise callback? Could revamp sendauth/sendnotify.
+        #probably check that it worked? Maybe use some kind of Queue that waits for a response and checks against expected otherwise callback? Could revamp sendauth/sendnotify.
 
     async def listen(self):
         self.failed_attempts = 0

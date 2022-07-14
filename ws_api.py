@@ -2,13 +2,15 @@
 
 import json
 import logging
+import traceback
 from json import dumps
-from helpers.constants import WS_ENDPOINT, WS_TIMEOUT
+from helpers.constants import WS_ENDPOINT
 import websockets
 
 _LOGGER = logging.getLogger(__name__)
 
 SIGNAL_CONNECTION_STATE = "ryobiwebsocket_state"
+SIGNAL_WEBSOCKET_MESSAGE = "ryobiwebsocket_message"
 
 ERROR_AUTH_FAILURE = "Authorization failure"
 ERROR_TOO_MANY_RETRIES = "Too many retries"
@@ -36,18 +38,18 @@ class RyobiWebsocket:
         self.failed_attempts = None
         self._error_reason = None
 
-    # @property
-    # def state(self):
-    #     """Return the current state."""
-    #     return self._state
+    @property
+    def state(self):
+        """Return the current state."""
+        return self._state
 
-    # @state.setter
-    # def state(self, value):
-    #     """Set the state."""
-    #     self._state = value
-    #     _LOGGER.debug("Websocket %s", value)
-    #     self.callback(SIGNAL_CONNECTION_STATE, value, self._error_reason)
-    #     self._error_reason = None
+    @state.setter
+    def state(self, value):
+        """Set the state."""
+        self._state = value
+        _LOGGER.debug("Websocket state: %s", value)
+        self.callback(SIGNAL_CONNECTION_STATE, value, self._error_reason)
+        self._error_reason = None
 
     async def running(self):
         try:
@@ -71,7 +73,7 @@ class RyobiWebsocket:
                     while True:
                         async for message in self.conn:
                             _LOGGER.debug("Message: %s", message)
-                            self.callback(message)
+                            self.callback(SIGNAL_WEBSOCKET_MESSAGE, json.loads(message))
                             #process message
                         if self._state is STATE_STOPPED:
                             _LOGGER.info("Closing websocket...")
@@ -95,10 +97,13 @@ class RyobiWebsocket:
                     continue
 
         except Exception as error:
-            _LOGGER.error("Unhandled exception occured: (%s) %s", type(error), error)
+            def get_traceback(e):
+                lines = traceback.format_exception(type(e), e, e.__traceback__)
+                return ''.join(lines)
+            
+            _LOGGER.error("Unhandled exception occured: %s", get_traceback(error))
             self._error_reason = error
             self._state = STATE_ERROR
-            pass
 
     async def send_auth_message(self):
         _LOGGER.debug("Sending Authentication message.")

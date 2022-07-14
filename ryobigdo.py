@@ -17,6 +17,7 @@ class RyobiGDO:
         self.auth = auth
         self.device_id = id
         self.ws = None
+        self.wsState = None
 
         self.name = None
         self.description = None
@@ -47,34 +48,52 @@ class RyobiGDO:
         }
 
         self.device_response = None
-        """
+        
         if self.auth is not None and self.device_id is not None:
-            self.update_device(self, self.auth)
-        """
-    def process_ws_msg(self, data):
-        _LOGGER.debug("Processing incoming msg: %s", data)
+            self.update_device()
+        
+    def process_ws_msg(self, topic, data, error=None): 
+        _LOGGER.debug("Processing incoming %s: %s", topic, data)
+
+        if topic is ws_api.SIGNAL_CONNECTION_STATE: #Websocket state update
+            self.wsState = data
+            if error is not None: #is state error update
+                _LOGGER.error("Relaying RyobiWebsocket %s: %s", data, error)
+                return True
+            
+            _LOGGER.info("Relaying RyobiWebsocket State: %s", data)
+            return True
+        
+        #If not state update then its a message from the websocket, process below
         msgType = data["method"]
         msgDevice = data["params"]["varName"]
 
         if msgType == "wskAttributeUpdateNtfy":
-            msgTopic = list(data["params"].keys()[2])
-
-            if msgTopic == "garageLight_4":
+            msgTopic = list(data["params"].keys())[2]
+            _LOGGER.debug("Processing notification update for %s", msgTopic)
+            msgSplit = msgTopic.partition(".")
+            moduleName = msgSplit[0]
+            moduleUpdate = msgSplit[1]
+            
+            if moduleName == "garageLight_4":
                 msgUpdate = data["params"][msgTopic]
                 self.garageLight["lightState"] = msgUpdate["value"]
                 self.lastUpdate = msgUpdate["lastSet"]
                 return True
-        #other msgTypes process here.
 
-        _LOGGER.error("Could not process message. Unrecognized type: %s. Data: %s", msgType, data)
+        #other msgTypes process here. If not error below
+
+        _LOGGER.error("Could not process RyobiWebsocket message. Unrecognized type: %s. Data: %s", msgType, data)
         return False
 
     def update_device(self):
-        if self.device_id is None:
+        if self.device_id is None: #Don't think this is actually needed.
             _LOGGER.error("No device_id exists or was given to update")
             return False
 
-        response = http_api.get_device(self.auth, f"{HTTP_ENDPOINT}/devices", self.device_id)
+        _LOGGER.info("Updating device info...")
+
+        response = http_api.get_device(self.auth, self.device_id)
         try:
             if response.status_code == 200:
                 self.device_response = response.json()

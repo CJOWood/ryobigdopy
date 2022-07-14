@@ -34,9 +34,9 @@ class RyobiWebsocket:
         self.device_id = device_id
         self._is_auth = False
         self._is_notify = False
-        self._state = STATE_NOT_STARTED
-        self.failed_attempts = None
         self._error_reason = None
+        self.state = STATE_NOT_STARTED
+        self.failed_attempts = None
 
     @property
     def state(self):
@@ -46,15 +46,15 @@ class RyobiWebsocket:
     @state.setter
     def state(self, value):
         """Set the state."""
-        self._state = value
         _LOGGER.debug("Websocket state: %s", value)
+        self._state = value
         self.callback(SIGNAL_CONNECTION_STATE, value, self._error_reason)
         self._error_reason = None
 
     async def running(self):
         try:
             self.failed_attempts = 0
-            self._state = STATE_STARTING
+            self.state = STATE_STARTING
             _LOGGER.info("Starting websocket connection...")
             async for self.conn in websockets.connect(WS_ENDPOINT):
                 try:
@@ -68,21 +68,21 @@ class RyobiWebsocket:
                             raise WebsocketConnectionError
 
                     _LOGGER.info("Websocket connected, authenticated, and subscribed to device.")
-                    self._state = STATE_CONNECTED
+                    self.state = STATE_CONNECTED
 
                     while True:
                         async for message in self.conn:
                             _LOGGER.debug("Message: %s", message)
                             self.callback(SIGNAL_WEBSOCKET_MESSAGE, json.loads(message))
                             #process message
-                        if self._state is STATE_STOPPED:
+                        if self.state is STATE_STOPPED:
                             _LOGGER.info("Closing websocket...")
                             await self.conn.close()
                             break
 
                 except websockets.ConnectionClosed:
                     _LOGGER.warning("Websocket connection closed. Retrying... %s", self.failed_attempts)
-                    self._state = STATE_CLOSED
+                    self.state = STATE_CLOSED
                     self.failed_attempts += 1
                     self._is_notify = False
                     self._is_auth = False
@@ -90,7 +90,7 @@ class RyobiWebsocket:
 
                 except WebsocketConnectionError as error:
                     _LOGGER.warning("Failed to authenticate or subscribe. Retrying... %s", self.failed_attempts)
-                    self._state = STATE_ERROR
+                    self.state = STATE_ERROR
                     self.failed_attempts += 1
                     self._is_notify = False
                     self._is_auth = False
@@ -103,7 +103,7 @@ class RyobiWebsocket:
             
             _LOGGER.error("Unhandled exception occured: %s", get_traceback(error))
             self._error_reason = error
-            self._state = STATE_ERROR
+            self.state = STATE_ERROR
 
     async def send_auth_message(self):
         _LOGGER.debug("Sending Authentication message.")
@@ -146,7 +146,7 @@ class RyobiWebsocket:
     #{'jsonrpc': '2.0', 'result': {'result': 'OK', 'aCnt': 0}, 'id': 3}
 
     async def send_msg(self, msg):
-        if self._state is STATE_CONNECTED:
+        if self.state is STATE_CONNECTED:
             await self.conn.send(msg)
 
     async def send_command(self, command, value):

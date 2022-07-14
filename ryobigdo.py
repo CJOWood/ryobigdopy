@@ -55,7 +55,7 @@ class RyobiGDO:
     def process_ws_msg(self, topic, data, error=None): 
         _LOGGER.debug("Processing incoming %s: %s", topic, data)
 
-        if topic is ws_api.SIGNAL_CONNECTION_STATE: #Websocket state update
+        if topic is ws_api.SIGNAL_CONNECTION_STATE: #Websocket state update. #TODO: breakout into it's own function
             self.wsState = data
             if error is not None: #is state error update
                 _LOGGER.error("Relaying RyobiWebsocket %s: %s", data, error)
@@ -63,8 +63,8 @@ class RyobiGDO:
             
             _LOGGER.info("Relaying RyobiWebsocket State: %s", data)
             return True
-        
-        #If not state update then its a message from the websocket, process below
+
+        #If not state update then its a message from the websocket, process below. #TODO: breakout into it's own function (maybe more than 1)
         msgType = data["method"]
         msgDevice = data["params"]["varName"]
 
@@ -79,6 +79,7 @@ class RyobiGDO:
                 msgUpdate = data["params"][msgTopic]
                 self.garageLight["lightState"] = msgUpdate["value"]
                 self.lastUpdate = msgUpdate["lastSet"]
+                _LOGGER.info("%s updated!", msgTopic)
                 return True
 
         #other msgTypes process here. If not error below

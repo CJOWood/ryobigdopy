@@ -1,4 +1,8 @@
+# ryobigdopy
 
+Async library to react to events issued over Ryobi GDO Websockets.
+
+## Example use
 
 ```python
 import auth as a

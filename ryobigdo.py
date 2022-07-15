@@ -71,7 +71,6 @@ class RyobiGDO:
             if self.ws_enitiy_update(data):
                 return True
 
-        _LOGGER.error("Could not process RyobiWebsocket message. Unrecognized type: %s. Data: %s", msgType, data)
         return False
 
     def ws_entity_update(self, data):
@@ -92,7 +91,9 @@ class RyobiGDO:
                 _LOGGER.info("%s updated!", msgTopic)
                 return True
 
-        #other msgTypes process here.
+        #TODO other msgTypes (ENTITY UPDATES) process here.
+
+        _LOGGER.error("Could not process RyobiWebsocket message. Unrecognized type: %s. Data: %s", msgType, data)
         return False #Entity update not recognized. Did not process.
 
     def ws_state_update(self, data, error=None):

@@ -50,11 +50,7 @@ class RyobiWebsocket:
             self.state = STATE_STARTING
             _LOGGER.info("Starting websocket connection...")
             async for self.conn in websockets.connect(WS_ENDPOINT):
-                if self.failed_attempts > WS_MAXRETRY:
-                    _LOGGER.debug("Connection stopped after too many retries (%s).", self.failed_attempts)
-                    self._error_reason = f"Connection stopped after too many retries (%s).", self.failed_attempts
-                    self.state = STATE_STOPPED
-                    break
+                if self.check_retries(): break
 
                 try:
                     _LOGGER.debug("is Auth: %s. is Notify: %s", self._is_auth, self._is_notify)
@@ -80,7 +76,8 @@ class RyobiWebsocket:
                             break
 
                 except websockets.ConnectionClosed:
-                    _LOGGER.warning("Websocket connection closed. Retrying... %s", self.failed_attempts)
+                    _LOGGER.warning(f"Websocket connection closed. Retrying... {self.failed_attempts}")
+                    self._error_reason = f"Websocket connection closed. Retrying... {self.failed_attempts}"
                     self.state = STATE_CLOSED
                     self.failed_attempts += 1
                     self._is_notify = False
@@ -88,7 +85,7 @@ class RyobiWebsocket:
                     continue
 
                 except WebsocketConnectionError as error:
-                    _LOGGER.warning("Failed to authenticate or subscribe. Retrying... %s", self.failed_attempts)
+                    _LOGGER.warning(f"Failed to authenticate or subscribe. Retrying... {self.failed_attempts}")
                     self._error_reason = error
                     self.state = STATE_ERROR
                     self.failed_attempts += 1
@@ -171,10 +168,7 @@ class RyobiWebsocket:
     async def listen(self):
         self.failed_attempts = 0
         while self.state != STATE_STOPPED:
-            if self.failed_attempts > WS_MAXRETRY:
-                self.state = STATE_STOPPED
-                break
-
+            if self.check_retries(): break
             await self.running()
 
         _LOGGER.info("Websocket loop stopped.")
@@ -182,6 +176,13 @@ class RyobiWebsocket:
     def close(self):
         """Close the listening websocket."""
         self.state = STATE_STOPPED
+    
+    def check_retries(self):
+        if self.failed_attempts > WS_MAXRETRY:
+            _LOGGER.debug("Connection stopped after too many retries (%s).", self.failed_attempts)
+            self._error_reason = f"Connection stopped after too many retries (%s).", self.failed_attempts
+            self.state = STATE_STOPPED
+            return True
 
 class WebsocketConnectionError(Exception):
     """Class to throw an unauthorized access error."""

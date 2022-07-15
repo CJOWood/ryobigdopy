@@ -51,20 +51,30 @@ class RyobiGDO:
         
         if self.auth is not None and self.device_id is not None:
             self.update_device()
+
+    def connect_ws(self):
+        self.ws = ws_api.RyobiWebsocket(self.process_ws_msg, self.auth, self.device_id)
+        loop = asyncio.get_event_loop()
+        # loop.create_task(do_other())
+        loop.run_until_complete(self.ws.listen())
+
+    def close_ws(self):
+        self.ws.close()
         
     def process_ws_msg(self, topic, data, error=None): 
         _LOGGER.debug("Processing incoming %s: %s || %s", topic, data, error)
 
-        if topic is ws_api.SIGNAL_CONNECTION_STATE: #Websocket state update. #TODO: breakout into it's own function
-            self.wsState = data
-            if error is not None: #is state error update
-                _LOGGER.error("Relaying RyobiWebsocket %s: %s", data, error)
-                return True
-            
-            _LOGGER.info("Relaying RyobiWebsocket State: %s", data)
-            return True
+        if topic is ws_api.SIGNAL_CONNECTION_STATE: #Websocket state update.
+            return self.ws_state_update(data, error)
 
-        #If not state update then its a message from the websocket, process below. #TODO: breakout into it's own function (maybe more than 1)
+        if topic is ws_api.SIGNAL_WEBSOCKET_MESSAGE: #Websocket entity update.
+            if self.ws_enitiy_update(data):
+                return True
+
+        _LOGGER.error("Could not process RyobiWebsocket message. Unrecognized type: %s. Data: %s", msgType, data)
+        return False
+
+    def ws_entity_update(self, data):
         msgType = data["method"]
         msgDevice = data["params"]["varName"]
 
@@ -82,10 +92,16 @@ class RyobiGDO:
                 _LOGGER.info("%s updated!", msgTopic)
                 return True
 
-        #other msgTypes process here. If not error below
+        #other msgTypes process here.
+        return False #Entity update not recognized. Did not process.
 
-        _LOGGER.error("Could not process RyobiWebsocket message. Unrecognized type: %s. Data: %s", msgType, data)
-        return False
+    def ws_state_update(self, data, error=None):
+        self.wsState = data
+        if error is not None: #is state error update
+            _LOGGER.error("Relaying RyobiWebsocket %s: %s", data, error)
+            return True
+        _LOGGER.info("Relaying RyobiWebsocket State: %s", data)
+        return True
 
     def update_device(self):
         if self.device_id is None: #Don't think this is actually needed.
@@ -143,12 +159,6 @@ class RyobiGDO:
         self.device_response = None
         _LOGGER.info("Device information updated!")
         return True
-
-    def connectWS(self):
-        self.ws = ws_api.RyobiWebsocket(self.process_ws_msg, self.auth, self.device_id)
-        loop = asyncio.get_event_loop()
-        # loop.create_task(do_other())
-        loop.run_until_complete(self.ws.listen())
 
     def turn_on_light(self, force=False):
         if self.garageLight["lightState"] == True and not force:

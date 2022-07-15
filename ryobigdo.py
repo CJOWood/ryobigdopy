@@ -12,7 +12,7 @@ import ws_api
 _LOGGER = logging.getLogger(__name__)
 
 class RyobiGDO:
-    def __init__(self, id, auth):
+    def __init__(self, auth, id=None):
         _LOGGER.debug("Creating RyobiGDO object.")
         self.auth = auth
         self.device_id = id
@@ -105,7 +105,7 @@ class RyobiGDO:
         return True
 
     def update_device(self):
-        if self.device_id is None: #Don't think this is actually needed.
+        if self.device_id is None:
             _LOGGER.error("No device_id exists or was given to update")
             return False
 

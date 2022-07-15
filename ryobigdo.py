@@ -53,7 +53,7 @@ class RyobiGDO:
             self.update_device()
         
     def process_ws_msg(self, topic, data, error=None): 
-        _LOGGER.debug("Processing incoming %s: %s", topic, data)
+        _LOGGER.debug("Processing incoming %s: %s || %s", topic, data, error)
 
         if topic is ws_api.SIGNAL_CONNECTION_STATE: #Websocket state update. #TODO: breakout into it's own function
             self.wsState = data

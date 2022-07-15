@@ -4,26 +4,20 @@ import json
 import logging
 import traceback
 from json import dumps
-from helpers.constants import WS_ENDPOINT
+from helpers.constants import WS_ENDPOINT, WS_MAXRETRY
 import websockets
 
 _LOGGER = logging.getLogger(__name__)
 
-SIGNAL_CONNECTION_STATE = "ryobiwebsocket_state"
-SIGNAL_WEBSOCKET_MESSAGE = "ryobiwebsocket_message"
+SIGNAL_CONNECTION_STATE = "ryobiwebsocket_state" #Callback signal state update
+SIGNAL_WEBSOCKET_MESSAGE = "ryobiwebsocket_message" #Callback websocket message
 
-ERROR_AUTH_FAILURE = "Authorization failure"
-ERROR_TOO_MANY_RETRIES = "Too many retries"
-ERROR_UNKNOWN = "Unknown"
-
-MAX_FAILED_ATTEMPTS = 5
-
-STATE_NOT_STARTED = "not_started"
-STATE_STARTING = "starting"
-STATE_CONNECTED = "connected"
-STATE_STOPPED = "stopped"
-STATE_CLOSED = "closed"
-STATE_ERROR = "error"
+STATE_NOT_STARTED = "not_started" #Represents a state where the socket hasn't attempted to start.
+STATE_STARTING = "starting" #Represents a state where the socket is in the process of becoming STATE_CONNECTED
+STATE_CONNECTED = "connected" #Represents a state where the socket is connected, authenticated, and subscribed.
+STATE_STOPPED = "stopped" #Represents a state where the socket was intentionally stopped, sometimes as a result of MAX_FAILED_ATTEMPTS.
+STATE_CLOSED = "closed" #Represents a state where the socket was closed by the server (sometimes due to a connection error)
+STATE_ERROR = "error" #Represents a state where the socket/api encountered an error. Should retry connection.
 
 class RyobiWebsocket:
 
@@ -53,19 +47,24 @@ class RyobiWebsocket:
 
     async def running(self):
         try:
-            self.failed_attempts = 0
             self.state = STATE_STARTING
             _LOGGER.info("Starting websocket connection...")
             async for self.conn in websockets.connect(WS_ENDPOINT):
+                if self.failed_attempts > WS_MAXRETRY:
+                    _LOGGER.debug("Connection stopped after too many retries (%s).", self.failed_attempts)
+                    self._error_reason = f"Connection stopped after too many retries (%s).", self.failed_attempts
+                    self.state = STATE_STOPPED
+                    break
+
                 try:
                     _LOGGER.debug("is Auth: %s. is Notify: %s", self._is_auth, self._is_notify)
                     if self._is_auth is False:
                         if not await self.send_auth_message():
-                            raise WebsocketConnectionError
+                            raise WebsocketConnectionError("Authentication failed.")
 
                     if self._is_notify is False:
                         if not await self.send_subscribe_message():
-                            raise WebsocketConnectionError
+                            raise WebsocketConnectionError("Subscribing to updates failed.")
 
                     _LOGGER.info("Websocket connected, authenticated, and subscribed to device.")
                     self.state = STATE_CONNECTED
@@ -90,6 +89,7 @@ class RyobiWebsocket:
 
                 except WebsocketConnectionError as error:
                     _LOGGER.warning("Failed to authenticate or subscribe. Retrying... %s", self.failed_attempts)
+                    self._error_reason = error
                     self.state = STATE_ERROR
                     self.failed_attempts += 1
                     self._is_notify = False
@@ -98,12 +98,13 @@ class RyobiWebsocket:
 
         except Exception as error:
             def get_traceback(e):
-                lines = traceback.format_exception(type(e), e, e.__traceback__)
-                return ''.join(lines)
-            
+                return ''.join(traceback.format_exception(type(e), e, e.__traceback__))
             _LOGGER.error("Unhandled exception occured: %s", get_traceback(error))
+            self.failed_attempts += 1
             self._error_reason = error
             self.state = STATE_ERROR
+            self._is_notify = False
+            self._is_auth = False
 
     async def send_auth_message(self):
         _LOGGER.debug("Sending Authentication message.")
@@ -148,25 +149,35 @@ class RyobiWebsocket:
     async def send_msg(self, msg):
         if self.state is STATE_CONNECTED:
             await self.conn.send(msg)
+            return True
+        else:
+            return False
 
     async def send_command(self, command, value):
-        await self.conn.send(json.dumps(
-            {'jsonrpc': '2.0',
-            'method': 'gdoModuleCommand',
-            'params':
-                {'msgType': 16,
-                'moduleType': 5,
-                'portId': 7, #check if protId same for light/door/modules.
-                'moduleMsg': 
-                    {command: value},
-                'topic': self.device_id}
-            }))
+        if self.state is STATE_CONNECTED:
+            await self.conn.send(json.dumps(
+                {'jsonrpc': '2.0',
+                'method': 'gdoModuleCommand',
+                'params':
+                    {'msgType': 16,
+                    'moduleType': 5,
+                    'portId': 7, #check if protId same for light/door/modules.
+                    'moduleMsg': 
+                        {command: value},
+                    'topic': self.device_id}
+                }))
         #probably check that it worked? Maybe use some kind of Queue that waits for a response and checks against expected otherwise callback? Could revamp sendauth/sendnotify.
 
     async def listen(self):
         self.failed_attempts = 0
         while self.state != STATE_STOPPED:
+            if self.failed_attempts > WS_MAXRETRY:
+                self.state = STATE_STOPPED
+                break
+
             await self.running()
+
+        _LOGGER.info("Websocket loop stopped.")
 
     def close(self):
         """Close the listening websocket."""

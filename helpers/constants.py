@@ -7,7 +7,7 @@ RYOBI_URL = "tti.tiwiconnect.com"
 HTTP_URL = f"https://{RYOBI_URL}"
 WS_URL = f"wss://{RYOBI_URL}"
 HTTP_ENDPOINT = f"{HTTP_URL}/api"
-WS_ENDPOINT = f"{WS_URL}/api/wsrpc"
+WS_ENDPOINT = "google.com" #f"{WS_URL}/api/wsrpc"
 
 """
 Dictionaries

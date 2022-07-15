@@ -1,6 +1,6 @@
 # ryobigdopy
 
-Async library to react to events issued over Ryobi GDO Websockets.
+Library to interface with Ryobi GDO Websockets in Python.
 
 ## Example use
 

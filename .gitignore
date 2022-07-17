@@ -2,3 +2,5 @@ __main__.py
 __pycache__
 .vscode
 helpers/__pycache__
+.pypirc
+ryobigdopy.egg-info

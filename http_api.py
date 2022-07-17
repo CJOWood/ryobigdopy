@@ -21,7 +21,7 @@ def get_devices(auth):
             "password": auth.password,
         }
     )
-    return query(
+    return query( #TODO: Process and return a dict of Name/ID/Description/DeviceTypes/LastSeen
         auth,
         url=url,
         reqtype="get",

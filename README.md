@@ -7,11 +7,6 @@ Library to interface with Ryobi GDO Websockets in Python.
 ```python
 import auth as a
 import ryobigdo
-import logging
-
-_LOGGER = logging.getLogger(__name__)
-
-logging.basicConfig(level=logging.DEBUG)
 
 creds = {
     "username": RYOBI_USERNAME, #Username from Ryobi GDO App
@@ -21,7 +16,7 @@ creds = {
 auth = a.Auth(creds) #Manages login, creds, and API Key
 auth.login() #Checks creds and gets API Key for use in Websocket.
 
-print(http_api.get_devices(auth)) #Choose DEVICE_ID wanted and give to RyobiGDO Obj.
+print(http_api.get_devices(auth).json()) #Choose DEVICE_ID wanted and give to RyobiGDO Obj.
 
 DEVICE_ID = "" #From http_api.get_devices()
 

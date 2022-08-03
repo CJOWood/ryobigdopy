@@ -40,11 +40,23 @@ class RyobiGDO:
                 "value": None,
                 "enum": ["Closed", "Open", "Closing", "Opening", "Fault"],
             },
-            "doorPercentOpen": None,
+            "doorPosition": {
+                "lastSet": None,
+                "lastValue": None,
+                "value": None,
+            }
         }
         self.garageLight = {
-            "lightState": None,
-            "lightTimer": None,
+            "lightState": {
+                "lastSet": None,
+                "lastValue": None,
+                "value": None,
+            },
+            "lightTimer": {
+                "lastSet": None,
+                "lastValue": None,
+                "value": None,
+            },
         }
 
         self.device_response = None
@@ -68,32 +80,45 @@ class RyobiGDO:
             return self.ws_state_update(data, error)
 
         if topic is ws_api.SIGNAL_WEBSOCKET_MESSAGE: #Websocket entity update.
-            if self.ws_enitiy_update(data):
+            if self.ws_entity_update(data):
                 return True
 
         return False
 
     def ws_entity_update(self, data):
         msgType = data["method"]
-        msgDevice = data["params"]["varName"]
+        msgDeviceId = data["params"]["varName"]
 
         if msgType == "wskAttributeUpdateNtfy":
-            msgTopic = list(data["params"].keys())[2]
-            _LOGGER.debug("Processing notification update for %s", msgTopic)
-            msgSplit = msgTopic.partition(".")
-            moduleName = msgSplit[0]
-            moduleUpdate = msgSplit[1]
-            
-            if moduleName == "garageLight_4":
-                msgUpdate = data["params"][msgTopic]
-                self.garageLight["lightState"] = msgUpdate["value"]
-                self.lastUpdate = msgUpdate["lastSet"]
-                _LOGGER.info("%s updated!", msgTopic)
-                return True
+            msgKeys = list(data["params"].keys())
+            for key in msgKeys:
+                if key == "topic" or key == "varName":
+                    continue
 
-        #TODO other msgTypes (ENTITY UPDATES) process here.
+                if "." not in key:
+                    break
 
-        _LOGGER.error("Could not process RyobiWebsocket message. Unrecognized type: %s. Data: %s", msgType, data)
+                keySplit = key.partition(".")
+                moduleName = keySplit[0]
+                moduleState = keySplit[2]
+                moduleUpdate = data["params"][f"{key}"]
+
+                _LOGGER.debug("Processing notification update for %s: %s", key, moduleUpdate)
+
+                if "garageDoor_" in moduleName:
+                    for item in moduleUpdate:
+                        self.garageDoor[moduleState][item] = moduleUpdate[item]
+                    continue
+                elif "garageLight_" in moduleName:
+                    for item in moduleUpdate:
+                        self.garageLight[moduleState][item] = moduleUpdate[item]
+                    continue
+                else:
+                    _LOGGER.warn("Did not recognize last module name: %s", moduleName)
+                    break
+            return True
+
+        _LOGGER.error("Could not process RyobiWebsocket message. Unrecognized type/module: %s. Data: %s", msgType, data)
         return False #Entity update not recognized. Did not process.
 
     def ws_state_update(self, data, error=None):
@@ -152,10 +177,23 @@ class RyobiGDO:
                 "state": garageDoor["doorState"]["enum"][garageDoor["doorState"]["value"]]
             },
             "doorPercentOpen": garageDoor["doorPercentOpen"]["value"],
+            "doorPosition": {
+                "lastSet": garageDoor["doorPosition"]["lastSet"],
+                "lastValue": garageDoor["doorPosition"]["lastValue"],
+                "value": garageDoor["doorPosition"]["value"],
+            }
         }
-        self.garageLight = {
-            "lightState": garageLight["lightState"]["value"],
-            "lightTimer": garageLight["lightTimer"]["value"],
+        self.garageLight= {
+            "lightState": {
+                "lastSet": garageLight["lightState"]["lastSet"],
+                "lastValue": garageLight["lightState"]["lastValue"],
+                "value": garageLight["lightState"]["value"],
+            },
+            "lightTimer": {
+                "lastSet": garageLight["lightTimer"]["lastSet"],
+                "lastValue": garageLight["lightTimer"]["lastValue"],
+                "value": garageLight["lightTimer"]["value"],
+            },
         }
         self.device_response = None
         _LOGGER.info("Device information updated!")

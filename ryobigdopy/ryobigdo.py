@@ -103,11 +103,12 @@ class RyobiGDO:
                 moduleState = keySplit[2]
                 moduleUpdate = data["params"][f"{key}"]
 
-                _LOGGER.debug("Processing notification update for %s: %s", key, moduleUpdate)
+                _LOGGER.info("Processing notification update for %s: %s", key, moduleUpdate)
 
                 if "garageDoor_" in moduleName:
                     for item in moduleUpdate:
                         self.garageDoor[moduleState][item] = moduleUpdate[item]
+                        #TODO self.garageDoor["state"] = self.garageDoor["doorState"]["enum"][self.garageDoor["doorState"]["value"]]
                     continue
                 elif "garageLight_" in moduleName:
                     for item in moduleUpdate:
@@ -200,7 +201,7 @@ class RyobiGDO:
         return True
 
     def turn_on_light(self, force=False):
-        if self.garageLight["lightState"] == True and not force:
+        if self.garageLight["lightState"]["value"] == True and not force:
             _LOGGER.debug("Light already on. No request sent.")
             return
 
@@ -208,7 +209,7 @@ class RyobiGDO:
         self.ws.send_command("lightState", "true")
 
     def turn_off_light(self, force=False):
-        if self.garageLight["lightState"] == False and not force:
+        if self.garageLight["lightState"]["value"] == False and not force:
             _LOGGER.debug("Light already off. No request sent.")
             return True
 

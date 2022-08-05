@@ -16,7 +16,7 @@ creds = {
 auth = a.Auth(creds) #Manages login, creds, and API Key
 auth.login() #Checks creds and gets API Key for use in Websocket.
 
-print(http_api.get_devices(auth).json()) #Choose DEVICE_ID wanted and give to RyobiGDO Obj.
+print(http_api.get_devices(a).json()) #Choose DEVICE_ID wanted and give to RyobiGDO Obj.
 
 DEVICE_ID = "" #From http_api.get_devices()
 

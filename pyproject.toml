@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ryobigdopy"
 version = "0.0.1"
 authors = [
-  { name="Chris Wood", email="chris@chriswood.org" },
+  { name="Chris Wood", email="CJOWood@users.noreply.github.com" },
 ]
 description = "Library for communicating with Ryobi Garage Door Websocket and HTTP API."
 readme = "README.md"

@@ -1,3 +1,7 @@
+# ARCHIVED
+
+I will not be working on this anymore. SEE [Ryobi_Garage](https://github.com/CJOWood/ryobi_garagehttps://github.com/CJOWood/ryobi_garage) for a custom Home Assistant component.
+
 # ryobigdopy
 
 Library to interface with Ryobi GDO Websockets in Python.
